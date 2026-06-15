@@ -1,0 +1,1353 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>다이어트 운동 플래너</title>
+
+<!-- PWA / 홈화면 앱 설정 -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="운동 플래너">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#22c55e">
+
+<!-- 홈화면 아이콘 (SVG 인라인 → canvas로 생성) -->
+<link rel="apple-touch-icon" id="appIcon">
+<script>
+(function(){
+  const c = document.createElement('canvas');
+  c.width = c.height = 180;
+  const ctx = c.getContext('2d');
+  // 배경
+  const g = ctx.createLinearGradient(0,0,180,180);
+  g.addColorStop(0,'#22c55e');
+  g.addColorStop(1,'#16a34a');
+  ctx.fillStyle = g;
+  ctx.roundRect(0,0,180,180,36);
+  ctx.fill();
+  // 덤벨 아이콘
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 90px serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('🏋️', 90, 95);
+  const link = document.getElementById('appIcon');
+  link.href = c.toDataURL('image/png');
+})();
+</script>
+<style>
+  :root{
+    --primary:#22c55e;
+    --primary-dark:#16a34a;
+    --accent:#f97316;
+    --bg:#f6f8f7;
+    --card:#ffffff;
+    --text:#1f2937;
+    --muted:#6b7280;
+    --border:#e5e7eb;
+    --danger:#ef4444;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Apple SD Gothic Neo","Noto Sans KR",sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    padding-bottom:max(40px, env(safe-area-inset-bottom, 40px));
+    padding-top:env(safe-area-inset-top, 0px);
+    padding-left:env(safe-area-inset-left, 0px);
+    padding-right:env(safe-area-inset-right, 0px);
+  }
+  .container{
+    max-width:520px;
+    margin:0 auto;
+    padding:16px;
+  }
+  header{
+    padding:20px 16px 12px;
+    text-align:center;
+  }
+  header h1{
+    font-size:22px;
+    color:var(--primary-dark);
+    font-weight:800;
+  }
+  header p{
+    color:var(--muted);
+    font-size:13px;
+    margin-top:4px;
+  }
+
+  /* Tabs */
+  .tabs{
+    display:flex;
+    gap:4px;
+    margin-bottom:16px;
+    background:var(--card);
+    border-radius:14px;
+    padding:6px;
+    box-shadow:0 1px 4px rgba(0,0,0,0.04);
+  }
+  .tab-btn{
+    flex:1;
+    padding:10px 0;
+    border:none;
+    background:transparent;
+    border-radius:10px;
+    font-size:13px;
+    font-weight:600;
+    color:var(--muted);
+    cursor:pointer;
+    transition:all .15s;
+  }
+  .tab-btn.active{
+    background:var(--primary);
+    color:#fff;
+  }
+
+  .page{display:none;}
+  .page.active{display:block;}
+
+  .card{
+    background:var(--card);
+    border-radius:16px;
+    padding:18px;
+    margin-bottom:14px;
+    box-shadow:0 1px 4px rgba(0,0,0,0.04);
+  }
+
+  /* Progress */
+  .progress-wrap{
+    display:flex;
+    align-items:center;
+    gap:14px;
+  }
+  .progress-ring{
+    position:relative;
+    width:72px;
+    height:72px;
+    flex-shrink:0;
+  }
+  .progress-ring svg{transform:rotate(-90deg);}
+  .progress-ring .pct{
+    position:absolute;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-weight:800;
+    font-size:14px;
+    color:var(--primary-dark);
+  }
+  .progress-info h2{font-size:16px;font-weight:700;margin-bottom:4px;}
+  .progress-info p{font-size:13px;color:var(--muted);}
+  .progress-info p.sub2{font-size:12px;margin-top:2px;}
+
+  /* Exercise list */
+  .ex-item{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    padding:12px 4px;
+    border-bottom:1px solid var(--border);
+  }
+  .ex-item:last-child{border-bottom:none;}
+  .ex-checkbox{
+    width:24px;
+    height:24px;
+    border-radius:50%;
+    border:2px solid var(--primary);
+    flex-shrink:0;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    transition:all .15s;
+  }
+  .ex-checkbox.checked{
+    background:var(--primary);
+  }
+  .ex-checkbox.checked::after{
+    content:"✓";
+    color:#fff;
+    font-size:14px;
+    font-weight:700;
+  }
+  .ex-info{flex:1;}
+  .ex-name{
+    font-size:15px;
+    font-weight:600;
+  }
+  .ex-name.checked{
+    text-decoration:line-through;
+    color:var(--muted);
+  }
+  .ex-detail{
+    font-size:12px;
+    color:var(--muted);
+    margin-top:2px;
+  }
+  .ex-kcal{
+    font-size:12px;
+    color:var(--accent);
+    font-weight:700;
+    margin-left:8px;
+  }
+  .ex-del{
+    border:none;
+    background:transparent;
+    color:var(--muted);
+    font-size:18px;
+    cursor:pointer;
+    padding:4px 8px;
+    line-height:1;
+  }
+  .ex-del:hover{color:var(--danger);}
+
+  .empty{
+    text-align:center;
+    color:var(--muted);
+    font-size:13px;
+    padding:30px 0;
+  }
+
+  /* Day tabs for weekly plan */
+  .day-tabs{
+    display:flex;
+    gap:6px;
+    overflow-x:auto;
+    margin-bottom:14px;
+  }
+  .day-tab{
+    flex-shrink:0;
+    padding:8px 14px;
+    border-radius:20px;
+    border:1px solid var(--border);
+    background:var(--card);
+    font-size:13px;
+    font-weight:600;
+    color:var(--muted);
+    cursor:pointer;
+    white-space:nowrap;
+  }
+  .day-tab.active{
+    background:var(--primary);
+    color:#fff;
+    border-color:var(--primary);
+  }
+  .day-tab.today-marker::after{
+    content:" •";
+    color:var(--accent);
+  }
+
+  /* Forms */
+  .form-group{
+    margin-bottom:12px;
+  }
+  .form-group label{
+    display:block;
+    font-size:12px;
+    font-weight:700;
+    color:var(--muted);
+    margin-bottom:6px;
+  }
+  .form-row{
+    display:flex;
+    gap:8px;
+  }
+  .form-row .form-group{
+    flex:1;
+  }
+  .add-form{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    margin-top:10px;
+  }
+  .add-form .row{
+    display:flex;
+    gap:8px;
+  }
+  input, select{
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:10px 12px;
+    font-size:14px;
+    font-family:inherit;
+    background:#fafafa;
+    width:100%;
+    min-width:0;
+  }
+  .add-form input, .add-form select{flex:1;}
+  input:focus, select:focus{
+    outline:2px solid var(--primary);
+    background:#fff;
+  }
+  .btn{
+    border:none;
+    border-radius:10px;
+    padding:11px 16px;
+    font-size:14px;
+    font-weight:700;
+    cursor:pointer;
+    transition:opacity .15s;
+  }
+  .btn:hover{opacity:.9;}
+  .btn-primary{background:var(--primary);color:#fff;}
+  .btn-block{width:100%;}
+  .btn-secondary{background:#fff;color:var(--primary-dark);border:1px solid var(--primary);}
+
+  h3.section-title{
+    font-size:14px;
+    font-weight:700;
+    margin-bottom:10px;
+    color:var(--text);
+  }
+
+  /* Profile results */
+  .result-grid{
+    display:grid;
+    grid-template-columns:repeat(2,1fr);
+    gap:10px;
+    margin:12px 0;
+  }
+  .result-box{
+    background:#f0fdf4;
+    border-radius:12px;
+    padding:12px;
+    text-align:center;
+  }
+  .result-box .num{
+    font-size:18px;
+    font-weight:800;
+    color:var(--primary-dark);
+  }
+  .result-box .label{
+    font-size:11px;
+    color:var(--muted);
+    margin-top:2px;
+  }
+  .goal-banner{
+    background:linear-gradient(135deg,#fef3c7,#fde68a);
+    border-radius:12px;
+    padding:14px;
+    text-align:center;
+    margin-bottom:8px;
+  }
+  .goal-banner .big{
+    font-size:20px;
+    font-weight:800;
+    color:#92400e;
+  }
+  .goal-banner .small{
+    font-size:12px;
+    color:#92400e;
+    margin-top:4px;
+  }
+  .disclaimer{
+    font-size:11px;
+    color:var(--muted);
+    margin-top:8px;
+    line-height:1.5;
+  }
+
+  .goal-time-box{
+    background:#f0fdf4;
+    border-radius:12px;
+    padding:12px;
+  }
+  .goal-time-box .form-row{
+    align-items:stretch;
+  }
+  .goal-time-box .form-row input{
+    flex:1;
+  }
+  .goal-time-box .form-row button{
+    flex:0 0 auto;
+    white-space:nowrap;
+  }
+  .goal-time-box .disclaimer{
+    margin-top:8px;
+    margin-bottom:0;
+    min-height:14px;
+  }
+
+  /* Weight log */
+  .weight-row{
+    display:flex;
+    gap:8px;
+    align-items:stretch;
+  }
+  .weight-row input{flex:1;}
+  .weight-row .btn{flex:0 0 auto; white-space:nowrap;}
+  .weight-card .disclaimer{
+    margin-top:8px;
+    margin-bottom:0;
+    min-height:14px;
+  }
+  .weight-chart-wrap{width:100%;}
+  .weight-chart{display:block; width:100%; height:160px;}
+  .weight-chart .grid-line{stroke:var(--border); stroke-width:1;}
+  .weight-chart .chart-line{fill:none; stroke:var(--primary); stroke-width:2;}
+  .weight-chart .chart-point{fill:var(--primary-dark);}
+  .weight-chart .axis-label{font-size:9px; fill:var(--muted);}
+  .weight-chart .goal-line{stroke:var(--accent); stroke-width:1.5; stroke-dasharray:4 3;}
+
+  /* Stats */
+  .stat-grid{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:10px;
+    margin-bottom:14px;
+  }
+  .stat-box{
+    background:var(--card);
+    border-radius:14px;
+    padding:14px 6px;
+    text-align:center;
+    box-shadow:0 1px 4px rgba(0,0,0,0.04);
+  }
+  .stat-box .num{
+    font-size:18px;
+    font-weight:800;
+    color:var(--primary-dark);
+  }
+  .stat-box .label{
+    font-size:11px;
+    color:var(--muted);
+    margin-top:2px;
+  }
+
+  .heatmap{
+    display:grid;
+    grid-template-columns:repeat(7,1fr);
+    gap:6px;
+  }
+  .heat-cell{
+    aspect-ratio:1;
+    border-radius:8px;
+    background:#e5e7eb;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:10px;
+    color:var(--muted);
+    position:relative;
+  }
+  .heat-cell.level-1{background:#bbf7d0;color:#166534;}
+  .heat-cell.level-2{background:#4ade80;color:#fff;}
+  .heat-cell.level-3{background:#16a34a;color:#fff;}
+
+  .weekday-label{
+    display:grid;
+    grid-template-columns:repeat(7,1fr);
+    gap:6px;
+    margin-bottom:6px;
+    font-size:11px;
+    color:var(--muted);
+    text-align:center;
+  }
+
+  footer{
+    text-align:center;
+    font-size:11px;
+    color:var(--muted);
+    padding:16px;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>🏃 다이어트 운동 플래너</h1>
+    <p id="todayLabel">오늘 날짜</p>
+  </header>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-page="profile">프로필</button>
+    <button class="tab-btn" data-page="today">오늘의 운동</button>
+    <button class="tab-btn" data-page="plan">주간 계획</button>
+    <button class="tab-btn" data-page="stats">통계</button>
+  </div>
+
+  <!-- 프로필 -->
+  <div class="page active" id="page-profile">
+    <div class="card">
+      <h3 class="section-title">내 프로필</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label>이름</label>
+          <input type="text" id="pName" placeholder="이름">
+        </div>
+        <div class="form-group">
+          <label>성별</label>
+          <select id="pGender">
+            <option value="male">남성</option>
+            <option value="female">여성</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>나이</label>
+          <input type="number" id="pAge" placeholder="예: 30">
+        </div>
+        <div class="form-group">
+          <label>키 (cm)</label>
+          <input type="number" id="pHeight" placeholder="예: 170">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>현재 몸무게 (kg)</label>
+          <input type="number" id="pWeight" placeholder="예: 75">
+        </div>
+        <div class="form-group">
+          <label>목표 몸무게 (kg)</label>
+          <input type="number" id="pTarget" placeholder="예: 68">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>주당 운동 횟수</label>
+          <select id="pFreq">
+            <option value="1">주 1회</option>
+            <option value="2">주 2회</option>
+            <option value="3" selected>주 3회</option>
+            <option value="4">주 4회</option>
+            <option value="5">주 5회</option>
+            <option value="6">주 6회</option>
+            <option value="7">매일</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>1회 운동 시간 (분)</label>
+          <input type="number" id="pDailyTime" min="5" max="180" step="5" value="30" placeholder="예: 30">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>선호 운동 스타일</label>
+        <select id="pStyle">
+          <option value="bodyweight">맨몸운동 위주</option>
+          <option value="weight">웨이트 트레이닝 위주</option>
+          <option value="cardio">유산소 위주</option>
+          <option value="mixed" selected>혼합 (추천)</option>
+        </select>
+      </div>
+
+      <div class="form-group goal-time-box">
+        <label>목표 기간으로 운동 시간 자동 계산 (선택)</label>
+        <div class="form-row">
+          <input type="number" id="pGoalWeeks" min="1" placeholder="목표 달성 기간 (주 단위, 예: 12)">
+          <button type="button" class="btn btn-secondary" id="calcTimeBtn">시간 계산</button>
+        </div>
+        <div class="disclaimer" id="goalTimeResult"></div>
+      </div>
+
+      <button class="btn btn-primary btn-block" id="saveProfileBtn">프로필 저장 &amp; 운동 계획 생성</button>
+    </div>
+
+    <div class="card" id="profileResultCard" style="display:none;">
+      <h3 class="section-title">분석 결과</h3>
+      <div class="result-grid">
+        <div class="result-box">
+          <div class="num" id="rBmi">-</div>
+          <div class="label">BMI (<span id="rBmiCat">-</span>)</div>
+        </div>
+        <div class="result-box">
+          <div class="num" id="rBmr">-</div>
+          <div class="label">기초대사량 (kcal)</div>
+        </div>
+        <div class="result-box">
+          <div class="num" id="rTdee">-</div>
+          <div class="label">활동대사량 (kcal/일)</div>
+        </div>
+        <div class="result-box">
+          <div class="num" id="rWeekKcal">-</div>
+          <div class="label">주간 운동 소모(kcal)</div>
+        </div>
+      </div>
+      <div class="goal-banner" id="goalBanner">
+        <div class="big" id="goalText">-</div>
+        <div class="small" id="goalSub">-</div>
+      </div>
+      <div class="disclaimer">* 현재 식단을 유지한 상태에서 계획된 운동만 수행했을 때의 단순 추정치입니다. 실제 체중 변화는 식단, 수면, 신체 적응 등에 따라 달라질 수 있어요. 무리한 감량은 건강에 해로울 수 있으니 필요시 전문가와 상담하세요.</div>
+    </div>
+  </div>
+
+  <!-- 오늘의 운동 -->
+  <div class="page" id="page-today">
+    <div class="card">
+      <div class="progress-wrap">
+        <div class="progress-ring">
+          <svg width="72" height="72" viewBox="0 0 72 72">
+            <circle cx="36" cy="36" r="30" stroke="#e5e7eb" stroke-width="8" fill="none"/>
+            <circle id="progressCircle" cx="36" cy="36" r="30" stroke="#22c55e" stroke-width="8" fill="none"
+              stroke-dasharray="188.4" stroke-dashoffset="188.4" stroke-linecap="round"/>
+          </svg>
+          <div class="pct" id="progressPct">0%</div>
+        </div>
+        <div class="progress-info">
+          <h2 id="progressTitle">오늘 할 일</h2>
+          <p id="progressSub">소모 칼로리 0 / 0 kcal</p>
+          <p class="sub2" id="progressSub2">완료 0 / 0개</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card weight-card">
+      <h3 class="section-title">오늘의 몸무게</h3>
+      <div class="weight-row">
+        <input type="number" id="todayWeightInput" step="0.1" min="0" placeholder="예: 65.5">
+        <button type="button" class="btn btn-secondary" id="saveWeightBtn">기록</button>
+      </div>
+      <div class="disclaimer" id="weightLogMsg"></div>
+    </div>
+
+    <div class="card">
+      <h3 class="section-title">오늘의 운동 목록</h3>
+      <div id="todayList"></div>
+    </div>
+  </div>
+
+  <!-- 주간 계획 -->
+  <div class="page" id="page-plan">
+    <div class="card">
+      <div class="day-tabs" id="dayTabs"></div>
+      <div id="planList"></div>
+      <div class="add-form">
+        <div class="row">
+          <input type="text" id="exName" placeholder="운동 이름 (예: 스쿼트)">
+        </div>
+        <div class="row">
+          <input type="number" id="exMinutes" placeholder="소요 시간(분)" min="1">
+          <select id="exIntensity">
+            <option value="3">강도: 가벼움</option>
+            <option value="5" selected>강도: 보통</option>
+            <option value="8">강도: 격렬함</option>
+          </select>
+        </div>
+        <div class="row">
+          <input type="text" id="exDetail" placeholder="메모 (선택, 예: 3세트 x 15회)">
+        </div>
+        <button class="btn btn-primary btn-block" id="addExBtn">+ 운동 추가</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 통계 -->
+  <div class="page" id="page-stats">
+    <div class="stat-grid">
+      <div class="stat-box">
+        <div class="num" id="streakNum">0</div>
+        <div class="label">연속 달성일</div>
+      </div>
+      <div class="stat-box">
+        <div class="num" id="weekKcal">0</div>
+        <div class="label">이번 주 소모(kcal)</div>
+      </div>
+      <div class="stat-box">
+        <div class="num" id="totalKcal">0</div>
+        <div class="label">총 누적 소모(kcal)</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 class="section-title">최근 4주 기록</h3>
+      <div class="weekday-label">
+        <div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div>토</div><div>일</div>
+      </div>
+      <div class="heatmap" id="heatmap"></div>
+    </div>
+
+    <div class="card">
+      <h3 class="section-title">체중 변화 추이</h3>
+      <div class="weight-chart-wrap">
+        <svg id="weightChart" class="weight-chart" viewBox="0 0 320 160" preserveAspectRatio="none"></svg>
+      </div>
+      <div class="disclaimer" id="weightChartMsg"></div>
+    </div>
+  </div>
+
+  <footer>모든 데이터는 이 브라우저에 자동 저장됩니다.</footer>
+</div>
+
+<script>
+const DAYS = ['mon','tue','wed','thu','fri','sat','sun'];
+const DAY_LABELS = {mon:'월',tue:'화',wed:'수',thu:'목',fri:'금',sat:'토',sun:'일'};
+const STORAGE_KEY = 'dietExercisePlanner';
+const DEFAULT_WEIGHT = 65;
+const KCAL_PER_KG = 7700; // 체지방 1kg ≈ 7700kcal
+
+function cuid(){
+  return 'x'+Math.random().toString(36).slice(2,10);
+}
+
+const POOLS = {
+  bodyweight: [
+    {name:'스쿼트', met:5.0, reps:15},
+    {name:'푸쉬업', met:8.0, reps:12},
+    {name:'런지', met:4.0, reps:12},
+    {name:'플랭크', met:3.8, holdSec:30},
+    {name:'버피 테스트', met:8.0, reps:10},
+    {name:'마운틴 클라이머', met:8.0, reps:20},
+    {name:'점핑잭', met:8.0, reps:30},
+    {name:'크런치', met:4.5, reps:15},
+    {name:'와이드 스쿼트', met:5.0, reps:15},
+    {name:'체어 딥스', met:5.0, reps:12}
+  ],
+  weight: [
+    {name:'벤치프레스', met:5.0, reps:10},
+    {name:'데드리프트', met:6.0, reps:8},
+    {name:'바벨 스쿼트', met:6.0, reps:10},
+    {name:'숄더프레스', met:5.0, reps:10},
+    {name:'랫풀다운', met:5.0, reps:12},
+    {name:'레그프레스', met:5.5, reps:12},
+    {name:'덤벨 컬', met:4.0, reps:12},
+    {name:'케이블 로우', met:5.0, reps:12},
+    {name:'레그컬', met:4.5, reps:12},
+    {name:'바벨 로우', met:5.5, reps:10}
+  ],
+  cardio: [
+    {name:'빠르게 걷기', met:4.3},
+    {name:'조깅', met:7.0},
+    {name:'러닝(중강도)', met:9.8},
+    {name:'줄넘기', met:10.0},
+    {name:'실내 사이클', met:6.8},
+    {name:'계단 오르기', met:8.8},
+    {name:'점핑잭', met:8.0},
+    {name:'마운틴 클라이머', met:8.0}
+  ]
+};
+POOLS.mixed = [
+  ...POOLS.bodyweight.slice(0,5),
+  ...POOLS.cardio.slice(0,3),
+  ...POOLS.weight.slice(0,3)
+];
+
+const WORKOUT_DAYS_BY_FREQ = {
+  1:['wed'],
+  2:['mon','thu'],
+  3:['mon','wed','fri'],
+  4:['mon','tue','thu','fri'],
+  5:['mon','tue','wed','thu','fri'],
+  6:['mon','tue','wed','thu','fri','sat'],
+  7:['mon','tue','wed','thu','fri','sat','sun']
+};
+
+function buildDayRoutine(pool, dailyTime, dayIndex){
+  const exercises = [];
+  let remaining = dailyTime;
+  if(dailyTime > 10){
+    const warmupMin = Math.min(5, Math.max(3, Math.round(dailyTime*0.15)));
+    exercises.push({name:'워밍업 스트레칭', met:2.5, minutes:warmupMin});
+    remaining -= warmupMin;
+  }
+  const n = Math.max(2, Math.min(6, Math.round(remaining/8)));
+  let perMin = Math.round((remaining/n)/5)*5;
+  if(perMin < 5) perMin = 5;
+  for(let i=0;i<n;i++){
+    const item = pool[(dayIndex*3 + i) % pool.length];
+    exercises.push({name:item.name, met:item.met, minutes:perMin, reps:item.reps, holdSec:item.holdSec});
+  }
+  return exercises.map(e=>({
+    id:cuid(), name:e.name, met:e.met, minutes:e.minutes, detail:buildDetail(e)
+  }));
+}
+
+function buildDetail(e){
+  if(e.reps){
+    return `3세트 x ${e.reps}회 · 약 ${e.minutes}분`;
+  }
+  if(e.holdSec){
+    return `3세트 x ${e.holdSec}초 · 약 ${e.minutes}분`;
+  }
+  return `약 ${e.minutes}분`;
+}
+
+function generatePlan(profile){
+  const pool = POOLS[profile.style] || POOLS.mixed;
+  const workoutDays = WORKOUT_DAYS_BY_FREQ[profile.freq] || WORKOUT_DAYS_BY_FREQ[3];
+  const plan = {};
+  DAYS.forEach(d=>plan[d]=[]);
+  workoutDays.forEach((day, idx)=>{
+    plan[day] = buildDayRoutine(pool, profile.dailyTime, idx);
+  });
+  DAYS.forEach(d=>{
+    if(!workoutDays.includes(d)){
+      plan[d] = [{id:cuid(), name:'휴식 / 가벼운 스트레칭', met:2.5, minutes:10, detail:'약 10분'}];
+    }
+  });
+  return plan;
+}
+
+function loadData(){
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if(raw){
+    try{
+      const parsed = JSON.parse(raw);
+      if(parsed.plan){
+        if(!parsed.weightLog) parsed.weightLog = {};
+        return parsed;
+      }
+    }catch(e){}
+  }
+  return {
+    profile: null,
+    weightLog: {},
+    plan: {
+      mon:[{id:cuid(),name:'전신 스트레칭',met:2.5,minutes:10,detail:'약 10분'},{id:cuid(),name:'스쿼트',met:5.0,minutes:8,detail:'3세트 x 15회 · 약 8분'}],
+      tue:[{id:cuid(),name:'빠르게 걷기',met:4.3,minutes:30,detail:'약 30분'}],
+      wed:[{id:cuid(),name:'플랭크',met:3.8,minutes:5,detail:'3세트 x 30초 · 약 5분'},{id:cuid(),name:'런지',met:4.0,minutes:8,detail:'3세트 x 12회 · 약 8분'}],
+      thu:[{id:cuid(),name:'빠르게 걷기',met:4.3,minutes:30,detail:'약 30분'}],
+      fri:[{id:cuid(),name:'전신 근력 운동',met:5.5,minutes:30,detail:'약 30분'}],
+      sat:[{id:cuid(),name:'가벼운 산책',met:3.5,minutes:40,detail:'약 40분'}],
+      sun:[{id:cuid(),name:'휴식 / 스트레칭',met:2.5,minutes:15,detail:'약 15분'}]
+    },
+    history: {}
+  };
+}
+
+let data = loadData();
+
+function save(){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+function todayKey(d=new Date()){
+  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+
+function getDayCode(d=new Date()){
+  const idx = (d.getDay()+6)%7;
+  return DAYS[idx];
+}
+
+function getWeight(){
+  return (data.profile && data.profile.weight) ? data.profile.weight : DEFAULT_WEIGHT;
+}
+
+function kcalFor(ex){
+  const w = getWeight();
+  const met = ex.met || 4;
+  const minutes = ex.minutes || 10;
+  return Math.round(met * w * (minutes/60));
+}
+
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function renderWeightLog(){
+  const input = document.getElementById('todayWeightInput');
+  const msg = document.getElementById('weightLogMsg');
+  if(!input) return;
+  const key = todayKey();
+  const logged = data.weightLog ? data.weightLog[key] : null;
+  if(logged != null){
+    input.value = logged;
+    msg.textContent = `오늘 기록: ${logged}kg`;
+  } else {
+    input.value = '';
+    msg.textContent = '오늘 몸무게를 기록하면 변화 추이 그래프에 반영돼요.';
+  }
+}
+
+document.getElementById('saveWeightBtn').addEventListener('click',()=>{
+  const input = document.getElementById('todayWeightInput');
+  const msg = document.getElementById('weightLogMsg');
+  const weight = parseFloat(input.value);
+  if(!weight || weight <= 0){
+    msg.textContent = '올바른 몸무게를 입력해주세요.';
+    return;
+  }
+  if(!data.weightLog) data.weightLog = {};
+  data.weightLog[todayKey()] = weight;
+
+  if(data.profile){
+    data.profile.weight = weight;
+  }
+
+  save();
+  msg.textContent = `오늘 기록: ${weight}kg 저장됐어요!`;
+  renderToday();
+  renderPlan();
+  renderProfileResults();
+  renderWeightChart();
+});
+
+function renderWeightChart(){
+  const svg = document.getElementById('weightChart');
+  const msgEl = document.getElementById('weightChartMsg');
+  if(!svg) return;
+
+  const entries = Object.entries(data.weightLog || {}).sort((a,b)=> a[0] < b[0] ? -1 : (a[0] > b[0] ? 1 : 0));
+  svg.innerHTML = '';
+
+  if(entries.length < 2){
+    if(msgEl) msgEl.textContent = '몸무게를 2일 이상 기록하면 변화 그래프가 표시돼요.';
+    return;
+  }
+  if(msgEl) msgEl.textContent = '';
+
+  const recent = entries.slice(-30);
+  const weights = recent.map(e=>e[1]);
+  let minW = Math.min(...weights);
+  let maxW = Math.max(...weights);
+  if(data.profile && data.profile.target){
+    minW = Math.min(minW, data.profile.target);
+    maxW = Math.max(maxW, data.profile.target);
+  }
+  const range = (maxW - minW) || 1;
+  const padding = range * 0.15;
+  const yMin = minW - padding;
+  const yMax = maxW + padding;
+
+  const W = 320, H = 160;
+  const padL = 34, padR = 10, padT = 14, padB = 20;
+  const plotW = W - padL - padR;
+  const plotH = H - padT - padB;
+
+  const xFor = (i)=> padL + (recent.length===1 ? plotW/2 : (i/(recent.length-1))*plotW);
+  const yFor = (w)=> padT + plotH - ((w - yMin)/(yMax-yMin))*plotH;
+
+  let html = '';
+
+  for(let i=0;i<=4;i++){
+    const y = padT + (plotH/4)*i;
+    const val = yMax - ((yMax-yMin)/4)*i;
+    html += `<line class="grid-line" x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}"/>`;
+    html += `<text class="axis-label" x="${padL-4}" y="${y+3}" text-anchor="end">${val.toFixed(1)}</text>`;
+  }
+
+  if(data.profile && data.profile.target != null){
+    const target = data.profile.target;
+    if(target >= yMin && target <= yMax){
+      const ty = yFor(target);
+      html += `<line class="goal-line" x1="${padL}" y1="${ty}" x2="${W-padR}" y2="${ty}"/>`;
+      html += `<text class="axis-label" x="${W-padR}" y="${ty-3}" text-anchor="end" style="fill:var(--accent)">목표 ${target}kg</text>`;
+    }
+  }
+
+  const points = recent.map((e,i)=>`${xFor(i)},${yFor(e[1])}`).join(' ');
+  html += `<polyline class="chart-line" points="${points}"/>`;
+
+  const labelStep = Math.max(1, Math.ceil(recent.length/6));
+  recent.forEach((e,i)=>{
+    const x = xFor(i), y = yFor(e[1]);
+    html += `<circle class="chart-point" cx="${x}" cy="${y}" r="2.5"/>`;
+    if(i % labelStep === 0 || i===recent.length-1){
+      const d = e[0].slice(5).replace('-','/');
+      html += `<text class="axis-label" x="${x}" y="${H-4}" text-anchor="middle">${d}</text>`;
+    }
+  });
+
+  svg.innerHTML = html;
+}
+
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('page-'+btn.dataset.page).classList.add('active');
+    if(btn.dataset.page==='stats') renderStats();
+    if(btn.dataset.page==='plan') renderPlan();
+    if(btn.dataset.page==='today') renderToday();
+  });
+});
+
+function renderHeader(){
+  const d = new Date();
+  const opts = {month:'long', day:'numeric', weekday:'long'};
+  document.getElementById('todayLabel').textContent = d.toLocaleDateString('ko-KR', opts);
+}
+
+function fillProfileForm(){
+  if(!data.profile) return;
+  const p = data.profile;
+  document.getElementById('pName').value = p.name || '';
+  document.getElementById('pGender').value = p.gender || 'male';
+  document.getElementById('pAge').value = p.age || '';
+  document.getElementById('pHeight').value = p.height || '';
+  document.getElementById('pWeight').value = p.weight || '';
+  document.getElementById('pTarget').value = p.target || '';
+  document.getElementById('pFreq').value = p.freq || 3;
+  document.getElementById('pDailyTime').value = p.dailyTime || 30;
+  document.getElementById('pStyle').value = p.style || 'mixed';
+  document.getElementById('pGoalWeeks').value = p.goalWeeks || '';
+}
+
+function avgMetForStyle(style){
+  const pool = POOLS[style] || POOLS.mixed;
+  const avg = pool.reduce((s,e)=>s+e.met,0)/pool.length;
+  return avg * 0.9; // 워밍업 시간 등으로 인한 평균 강도 보정
+}
+
+function bmiCategory(bmi){
+  if(bmi < 18.5) return '저체중';
+  if(bmi < 23) return '정상';
+  if(bmi < 25) return '과체중';
+  return '비만';
+}
+
+document.getElementById('saveProfileBtn').addEventListener('click',()=>{
+  const name = document.getElementById('pName').value.trim();
+  const gender = document.getElementById('pGender').value;
+  const age = parseFloat(document.getElementById('pAge').value);
+  const height = parseFloat(document.getElementById('pHeight').value);
+  const weight = parseFloat(document.getElementById('pWeight').value);
+  const target = parseFloat(document.getElementById('pTarget').value);
+  const freq = parseInt(document.getElementById('pFreq').value, 10);
+  let dailyTime = parseInt(document.getElementById('pDailyTime').value, 10);
+  const style = document.getElementById('pStyle').value;
+  const goalWeeksVal = parseFloat(document.getElementById('pGoalWeeks').value);
+  const goalWeeks = goalWeeksVal > 0 ? goalWeeksVal : null;
+
+  if(!age || !height || !weight || !target){
+    alert('나이, 키, 현재 몸무게, 목표 몸무게를 입력해주세요.');
+    return;
+  }
+  if(!dailyTime || dailyTime <= 0){
+    alert('1회 운동 시간을 입력해주세요.');
+    return;
+  }
+
+  const hasExistingPlan = data.profile !== null;
+  let regenerate = true;
+  if(hasExistingPlan){
+    regenerate = confirm('새 프로필을 기준으로 주간 운동 계획을 다시 생성할까요?\n(기존 주간 계획은 덮어씌워집니다)\n취소를 누르면 프로필 정보만 저장됩니다.');
+  }
+
+  data.profile = {name, gender, age, height, weight, target, freq, dailyTime, style, goalWeeks};
+  if(regenerate){
+    data.plan = generatePlan(data.profile);
+  }
+  save();
+  renderProfileResults();
+  renderToday();
+  renderPlan();
+  alert('프로필이 저장되었습니다!' + (regenerate ? ' 맞춤 운동 계획이 생성되었어요.' : ''));
+});
+
+document.getElementById('calcTimeBtn').addEventListener('click',()=>{
+  const resultEl = document.getElementById('goalTimeResult');
+  const weight = parseFloat(document.getElementById('pWeight').value);
+  const target = parseFloat(document.getElementById('pTarget').value);
+  const freq = parseInt(document.getElementById('pFreq').value, 10);
+  const style = document.getElementById('pStyle').value;
+  const goalWeeks = parseFloat(document.getElementById('pGoalWeeks').value);
+
+  if(!weight || !target){
+    resultEl.textContent = '현재 몸무게와 목표 몸무게를 먼저 입력해주세요.';
+    return;
+  }
+  const toLose = weight - target;
+  if(toLose <= 0){
+    resultEl.textContent = '이미 목표 체중에 도달했어요! 운동 시간을 따로 계산할 필요가 없어요.';
+    return;
+  }
+  if(!goalWeeks || goalWeeks <= 0){
+    resultEl.textContent = '목표 달성 기간(주)을 입력해주세요.';
+    return;
+  }
+
+  const weeklyKcalNeeded = toLose * KCAL_PER_KG / goalWeeks;
+  const perSessionKcal = weeklyKcalNeeded / freq;
+  const effectiveMet = avgMetForStyle(style);
+  let dailyTime = Math.round((perSessionKcal / (effectiveMet * weight) * 60) / 5) * 5;
+
+  let warning = '';
+  if(dailyTime < 10){
+    dailyTime = 10;
+    warning = ' 계산값이 너무 작아 최소 10분으로 맞췄어요. 더 여유로운 페이스로 운동해도 충분해요.';
+  } else if(dailyTime > 150){
+    const cappedTime = Math.min(dailyTime, 180);
+    warning = ` 1회 ${dailyTime}분은 다소 부담스러울 수 있어요. 주당 운동 횟수를 늘리거나 목표 기간을 늘리는 것을 고려해보세요.`;
+    dailyTime = cappedTime;
+  }
+
+  document.getElementById('pDailyTime').value = dailyTime;
+  resultEl.textContent = `약 ${goalWeeks}주 안에 ${toLose.toFixed(1)}kg 감량을 위해, 주 ${freq}회 · 1회 약 ${dailyTime}분 운동을 추천해요 (주간 약 ${Math.round(weeklyKcalNeeded)}kcal 소모 목표).${warning} '프로필 저장 & 운동 계획 생성'을 눌러 반영하세요.`;
+});
+
+function renderProfileResults(){
+  const card = document.getElementById('profileResultCard');
+  if(!data.profile){
+    card.style.display = 'none';
+    return;
+  }
+  card.style.display = 'block';
+  const p = data.profile;
+
+  const heightM = p.height/100;
+  const bmi = p.weight / (heightM*heightM);
+  document.getElementById('rBmi').textContent = bmi.toFixed(1);
+  document.getElementById('rBmiCat').textContent = bmiCategory(bmi);
+
+  let bmr;
+  if(p.gender==='male'){
+    bmr = 10*p.weight + 6.25*p.height - 5*p.age + 5;
+  } else {
+    bmr = 10*p.weight + 6.25*p.height - 5*p.age - 161;
+  }
+  document.getElementById('rBmr').textContent = Math.round(bmr);
+
+  let activityFactor;
+  if(p.freq <= 1) activityFactor = 1.2;
+  else if(p.freq <= 3) activityFactor = 1.375;
+  else if(p.freq <= 5) activityFactor = 1.55;
+  else activityFactor = 1.725;
+  const tdee = bmr * activityFactor;
+  document.getElementById('rTdee').textContent = Math.round(tdee);
+
+  let weekKcal = 0;
+  DAYS.forEach(d=>{
+    (data.plan[d]||[]).forEach(ex=>{ weekKcal += kcalFor(ex); });
+  });
+  document.getElementById('rWeekKcal').textContent = weekKcal;
+
+  const goalText = document.getElementById('goalText');
+  const goalSub = document.getElementById('goalSub');
+  const toLose = p.weight - p.target;
+  if(toLose <= 0){
+    goalText.textContent = '이미 목표 체중에 도달했어요! 🎉';
+    goalSub.textContent = '건강한 습관을 꾸준히 유지해보세요.';
+  } else if(weekKcal <= 0){
+    goalText.textContent = `${toLose.toFixed(1)}kg 감량 목표`;
+    goalSub.textContent = '주간 계획에 운동을 추가하면 예상 기간을 계산해드려요.';
+  } else {
+    const totalKcalNeeded = toLose * KCAL_PER_KG;
+    const weeksNeeded = totalKcalNeeded / weekKcal;
+    const weeksRounded = Math.ceil(weeksNeeded);
+    const months = (weeksNeeded/4.345);
+    goalText.textContent = `약 ${weeksRounded}주 (약 ${months.toFixed(1)}개월)`;
+    let sub = `${toLose.toFixed(1)}kg 감량까지, 운동만으로 예상되는 기간 (주간 ${weekKcal}kcal 소모 기준)`;
+    if(p.goalWeeks){
+      const diff = weeksRounded - p.goalWeeks;
+      if(diff <= 0){
+        sub += ` · 목표 기간(${p.goalWeeks}주)보다 빠르거나 비슷하게 달성할 수 있을 것 같아요!`;
+      } else {
+        sub += ` · 목표 기간(${p.goalWeeks}주)보다 약 ${diff}주 더 걸릴 수 있어요. 운동 시간을 늘리거나 '시간 계산'을 다시 활용해보세요.`;
+      }
+    }
+    goalSub.textContent = sub;
+  }
+}
+
+function renderToday(){
+  const dayCode = getDayCode();
+  const list = data.plan[dayCode] || [];
+  const key = todayKey();
+  if(!data.history[key]) data.history[key] = {done:[], total:0, kcalTotal:0, doneKcal:{}};
+  const hist = data.history[key];
+  hist.total = list.length;
+  hist.kcalTotal = list.reduce((sum,ex)=>sum + kcalFor(ex), 0);
+  if(!hist.doneKcal) hist.doneKcal = {};
+
+  const container = document.getElementById('todayList');
+  container.innerHTML = '';
+
+  if(list.length===0){
+    container.innerHTML = '<div class="empty">오늘(' + DAY_LABELS[dayCode] + '요일)에 등록된 운동이 없어요.<br>주간 계획 탭에서 추가해보세요!</div>';
+  } else {
+    list.forEach(ex=>{
+      const checked = hist.done.includes(ex.id);
+      const kcal = kcalFor(ex);
+      const item = document.createElement('div');
+      item.className='ex-item';
+      item.innerHTML = `
+        <div class="ex-checkbox ${checked?'checked':''}" data-id="${ex.id}"></div>
+        <div class="ex-info">
+          <div class="ex-name ${checked?'checked':''}">${escapeHtml(ex.name)}</div>
+          <div class="ex-detail">${escapeHtml(ex.detail||'')} <span class="ex-kcal">약 ${kcal}kcal</span></div>
+        </div>
+      `;
+      item.querySelector('.ex-checkbox').addEventListener('click',()=>{
+        toggleDone(key, ex);
+      });
+      container.appendChild(item);
+    });
+  }
+
+  const doneKcalSum = Object.values(hist.doneKcal).reduce((a,b)=>a+b,0);
+  const kcalTotal = hist.kcalTotal;
+  const pct = kcalTotal>0 ? Math.min(100, Math.round(doneKcalSum/kcalTotal*100)) : 0;
+  document.getElementById('progressPct').textContent = pct+'%';
+  document.getElementById('progressSub').textContent = `소모 칼로리 ${doneKcalSum} / ${kcalTotal} kcal`;
+  document.getElementById('progressSub2').textContent = `완료 ${hist.done.length} / ${list.length}개`;
+  document.getElementById('progressTitle').textContent = (list.length>0 && hist.done.length===list.length) ? '오늘 운동 완료! 🎉' : '오늘 할 일';
+
+  const circle = document.getElementById('progressCircle');
+  const circumference = 2*Math.PI*30;
+  circle.setAttribute('stroke-dasharray', circumference);
+  circle.setAttribute('stroke-dashoffset', circumference * (1-pct/100));
+
+  save();
+}
+
+function toggleDone(key, ex){
+  const hist = data.history[key];
+  const idx = hist.done.indexOf(ex.id);
+  if(idx>=0){
+    hist.done.splice(idx,1);
+    delete hist.doneKcal[ex.id];
+  } else {
+    hist.done.push(ex.id);
+    hist.doneKcal[ex.id] = kcalFor(ex);
+  }
+  save();
+  renderToday();
+}
+
+let currentPlanDay = getDayCode();
+
+function renderDayTabs(){
+  const wrap = document.getElementById('dayTabs');
+  wrap.innerHTML = '';
+  const today = getDayCode();
+  DAYS.forEach(d=>{
+    const btn = document.createElement('button');
+    btn.className = 'day-tab' + (d===currentPlanDay?' active':'') + (d===today?' today-marker':'');
+    btn.textContent = DAY_LABELS[d];
+    btn.addEventListener('click',()=>{
+      currentPlanDay = d;
+      renderPlan();
+    });
+    wrap.appendChild(btn);
+  });
+}
+
+function renderPlan(){
+  renderDayTabs();
+  const list = data.plan[currentPlanDay] || [];
+  const container = document.getElementById('planList');
+  container.innerHTML = '';
+
+  if(list.length===0){
+    container.innerHTML = '<div class="empty">'+DAY_LABELS[currentPlanDay]+'요일에 등록된 운동이 없어요.</div>';
+  } else {
+    list.forEach(ex=>{
+      const kcal = kcalFor(ex);
+      const item = document.createElement('div');
+      item.className='ex-item';
+      item.innerHTML = `
+        <div class="ex-info">
+          <div class="ex-name">${escapeHtml(ex.name)}</div>
+          <div class="ex-detail">${escapeHtml(ex.detail||'')} <span class="ex-kcal">약 ${kcal}kcal</span></div>
+        </div>
+        <button class="ex-del" data-id="${ex.id}">✕</button>
+      `;
+      item.querySelector('.ex-del').addEventListener('click',()=>{
+        data.plan[currentPlanDay] = data.plan[currentPlanDay].filter(e=>e.id!==ex.id);
+        save();
+        renderPlan();
+      });
+      container.appendChild(item);
+    });
+  }
+}
+
+document.getElementById('addExBtn').addEventListener('click',()=>{
+  const nameInput = document.getElementById('exName');
+  const minutesInput = document.getElementById('exMinutes');
+  const intensitySelect = document.getElementById('exIntensity');
+  const detailInput = document.getElementById('exDetail');
+  const name = nameInput.value.trim();
+  const minutes = parseInt(minutesInput.value, 10);
+  const met = parseFloat(intensitySelect.value);
+  const note = detailInput.value.trim();
+
+  if(!name) { nameInput.focus(); return; }
+  if(!minutes || minutes<=0) { minutesInput.focus(); return; }
+
+  const detail = note ? `${note} · 약 ${minutes}분` : `약 ${minutes}분`;
+
+  if(!data.plan[currentPlanDay]) data.plan[currentPlanDay]=[];
+  data.plan[currentPlanDay].push({id:cuid(), name, met, minutes, detail});
+  save();
+  nameInput.value='';
+  minutesInput.value='';
+  detailInput.value='';
+  nameInput.focus();
+  renderPlan();
+});
+
+function renderStats(){
+  let streak=0;
+  let d = new Date();
+  for(let i=0;i<365;i++){
+    const key = todayKey(d);
+    const h = data.history[key];
+    if(h && h.total>0 && h.done.length>=h.total){
+      streak++;
+      d.setDate(d.getDate()-1);
+    } else if(i===0){
+      d.setDate(d.getDate()-1);
+      continue;
+    } else {
+      break;
+    }
+  }
+  document.getElementById('streakNum').textContent = streak;
+
+  const now = new Date();
+  const monOffset = (now.getDay()+6)%7;
+  const monday = new Date(now);
+  monday.setDate(now.getDate()-monOffset);
+  let weekKcal=0;
+  for(let i=0;i<7;i++){
+    const dt = new Date(monday);
+    dt.setDate(monday.getDate()+i);
+    const key = todayKey(dt);
+    const h = data.history[key];
+    if(h && h.doneKcal) weekKcal += Object.values(h.doneKcal).reduce((a,b)=>a+b,0);
+  }
+  document.getElementById('weekKcal').textContent = weekKcal;
+
+  let totalKcal=0;
+  Object.values(data.history).forEach(h=>{
+    if(h.doneKcal) totalKcal += Object.values(h.doneKcal).reduce((a,b)=>a+b,0);
+  });
+  document.getElementById('totalKcal').textContent = totalKcal;
+
+  const heatmap = document.getElementById('heatmap');
+  heatmap.innerHTML='';
+  const start = new Date(monday);
+  start.setDate(monday.getDate()-21);
+  for(let i=0;i<28;i++){
+    const dt = new Date(start);
+    dt.setDate(start.getDate()+i);
+    const key = todayKey(dt);
+    const h = data.history[key];
+    const cell = document.createElement('div');
+    let level=0;
+    if(h && h.kcalTotal>0){
+      const doneK = h.doneKcal ? Object.values(h.doneKcal).reduce((a,b)=>a+b,0) : 0;
+      const r = doneK/h.kcalTotal;
+      if(r>=1) level=3;
+      else if(r>=0.5) level=2;
+      else if(r>0) level=1;
+    }
+    cell.className='heat-cell'+(level>0?` level-${level}`:'');
+    cell.textContent = dt.getDate();
+    if(dt > now) cell.style.opacity='0.35';
+    heatmap.appendChild(cell);
+  }
+
+  renderWeightChart();
+}
+
+renderHeader();
+fillProfileForm();
+renderProfileResults();
+renderToday();
+renderPlan();
+renderWeightLog();
+renderWeightChart();
+</script>
+</body>
+</html>
